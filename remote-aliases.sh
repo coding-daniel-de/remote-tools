@@ -4,13 +4,17 @@
 # Nuetzlich fuer scp/sftp bei gechrooteten Hostings, wo der echte absolute
 # Pfad (realpath) im SFTP-Jail nicht existiert, ~/... aber funktioniert.
 tilde-path() {
-    local p
+    local f p home real_home
+    real_home="$(realpath "$HOME")"
     for f in "${@:-.}"; do
         p="$(realpath "$f")" || continue
-        case "$p" in
-            "$HOME")   echo "~" ;;
-            "$HOME"/*) echo "~${p#"$HOME"}" ;;
-            *)         echo "$p" ;;
-        esac
+        # $HOME kann ein Symlink sein (z. B. IONOS), daher gegen beide Varianten pruefen
+        for home in "$real_home" "$HOME"; do
+            case "$p" in
+                "$home")   p="~"; break ;;
+                "$home"/*) p="~${p#"$home"}"; break ;;
+            esac
+        done
+        echo "$p"
     done
 }
