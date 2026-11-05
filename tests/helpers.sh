@@ -5,11 +5,12 @@ TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(dirname "$TESTS_DIR")"
 PASSFAIL=0
 
-# Wegwerf-Umgebung: $T/tools mit sync/, conf/ (inkl. Vorlage), leer von echten Configs
+# Wegwerf-Umgebung: $T/tools mit sync/, conf/ (inkl. Vorlage), leer von echten Configs; $T/stubs mit ssh-Stub
 setup() {
     T=$(mktemp -d "${TMPDIR:-/tmp}/synctools-test.XXXXXX")
     mkdir -p "$T/tools/sync" "$T/tools/conf"
-    cp "$REPO/sync/sync-lib.sh" "$REPO/sync/sync-configs.sh" "$T/tools/sync/"
+    cp "$REPO"/sync/*.sh "$T/tools/sync/"
+    cp -r "$TESTS_DIR/stubs" "$T/stubs"
     cp "$REPO/conf/sync_template.conf" "$T/tools/conf/"
     export HOME="$T"
 }

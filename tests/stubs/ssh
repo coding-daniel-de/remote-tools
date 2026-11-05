@@ -1,0 +1,18 @@
+#!/bin/bash
+# Ersatz fuer ssh: Befehl lokal ausfuehren, mit $STUB_REMOTE als Home des "Servers".
+# Aufruf wie ssh [-o opt]... <host> <befehl>. Jeder Aufruf steht in STUB_SSH_LOG ("ARGS <alle Argumente>").
+# STUB_SSH_FAIL: Verbindungsfehler (Exit 255). STUB_SSH_SLEEP=<sek>: vor dem Befehl warten.
+echo "ARGS $*" >> "${STUB_SSH_LOG:-/dev/null}"
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -O) exit 0 ;;                    # ssh -O exit: Master beenden, hier nur protokolliert
+        -o|-l|-p|-i|-F) shift 2 ;;
+        -*) shift ;;
+        *) break ;;
+    esac
+done
+HOST="$1"; shift
+[ -n "$STUB_SSH_FAIL" ] && { echo "ssh: stub verbindungsfehler" >&2; exit 255; }
+[ -n "$STUB_SSH_SLEEP" ] && sleep "$STUB_SSH_SLEEP"
+cd "$STUB_REMOTE" || exit 255
+HOME="$STUB_REMOTE" bash -c "$*"
