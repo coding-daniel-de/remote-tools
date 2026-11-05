@@ -9,7 +9,7 @@ git clone https://github.com/coding-daniel-de/remote-tools.git ~/remote-tools
 ~/remote-tools/install.sh
 ```
 
-`install.sh` trägt eine einzelne `source`-Zeile in die `~/.bashrc` ein (nur, wenn sie noch fehlt). Die restliche `.bashrc` bleibt unangetastet.
+`install.sh` trägt eine einzelne `source`-Zeile in die `~/.bashrc` ein (nur, wenn sie noch fehlt). Zusätzlich sorgt es dafür, dass `~/bin` im `PATH` liegt: im Terminal mit Rückfrage (y/N), mit `./install.sh --path` ohne Rückfrage. Der Block steht mit Marker `# bin-path` in der `~/.bashrc` (derselbe wie bei db-tools, kommt nie doppelt). Die restliche `.bashrc` bleibt unangetastet.
 
 Der Zielordner ist frei wählbar, z. B. `~/scripts/remote-tools`. Der Installer ermittelt seinen eigenen Ort und trägt dessen absoluten Pfad ein, die Aliasdatei bleibt im Repo. Wird der Ordner später verschoben, `install.sh` am neuen Ort erneut ausführen und die alte Zeile in der `~/.bashrc` von Hand entfernen.
 
