@@ -199,6 +199,13 @@ ok "ssh -O exit beim Beenden" 'grep -q -- "-O exit" "$STUB_SSH_LOG"'
 CP=$(grep -o "ControlPath=[^ ]*" "$STUB_SSH_LOG" | head -1 | cut -d= -f2); CPD=$(dirname "$CP")
 ok "Socket-Ordner aufgeraeumt" '[ ! -e "$CPD" ]'
 ok "Socket-Pfad kurz" '[ ${#CP} -lt 90 ]'
+# TMPDIR mit Leerzeichen bzw. zu lang: Ausweichen auf /tmp, Lauf funktioniert
+mkdir -p "$T/tmp mit leerzeichen"; : > "$STUB_SSH_LOG"
+TMPDIR="$T/tmp mit leerzeichen" "$SEND" ssh data --run >/dev/null 2>&1
+ok "TMPDIR mit Leerzeichen: Lauf klappt, Socket unter /tmp" '[ $? -eq 0 ] && grep -q "ControlPath=/tmp/sync-ssh\." "$STUB_SSH_LOG"'
+LONG="$T/$(printf 'x%.0s' $(seq 1 80))"; mkdir -p "$LONG"; : > "$STUB_SSH_LOG"
+TMPDIR="$LONG" "$SEND" ssh data --run >/dev/null 2>&1
+ok "langer TMPDIR: Socket unter /tmp" 'grep -q "ControlPath=/tmp/sync-ssh\." "$STUB_SSH_LOG"'
 # Abbruch per SIGTERM
 : > "$STUB_SSH_LOG"
 STUB_SSH_SLEEP=2 "$SEND" ssh data --run >/dev/null 2>&1 &

@@ -325,7 +325,11 @@ sync_run() {
     SYNC_SSH_DIR=""
     local RC
     if [ -n "$SSH_HOST" ]; then
-        SYNC_SSH_DIR=$(mktemp -d "${TMPDIR:-/tmp}/sync-ssh.XXXXXX") || { echo "Fehler: Temp-Ordner für SSH konnte nicht angelegt werden!" >&2; return 1; }
+        # rsync -e zerlegt den ssh-Befehl an Leerzeichen, und Unix-Sockets haben ein Laengenlimit (ca. 104 Zeichen):
+        # bei Leerzeichen oder langem TMPDIR deshalb /tmp nehmen
+        local TMPBASE="${TMPDIR:-/tmp}"
+        if [[ "$TMPBASE" =~ [[:space:]] ]] || [ ${#TMPBASE} -gt 60 ]; then TMPBASE="/tmp"; fi
+        SYNC_SSH_DIR=$(mktemp -d "${TMPBASE%/}/sync-ssh.XXXXXX") || { echo "Fehler: Temp-Ordner für SSH konnte nicht angelegt werden!" >&2; return 1; }
         SYNC_SSH_OPTS=(-o ControlMaster=auto -o ControlPersist=60 -o "ControlPath=${SYNC_SSH_DIR}/c")
         trap '_sync_ssh_cleanup; exit 130' INT TERM HUP
     else
