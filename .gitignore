@@ -1,0 +1,4 @@
+conf/*
+!conf/sync_template.conf
+sync_*.conf
+!sync_template.conf
