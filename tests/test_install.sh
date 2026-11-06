@@ -34,6 +34,15 @@ ok "install: ohne Terminal und ohne --path bleibt der PATH unveraendert" "! grep
 ( HOME="$H5" PATH="$H5/bin:$PATH" "$REPO/install.sh" "$H5/bin" </dev/null ) >"$T/out" 2>&1
 ok "install: kein PATH-Hinweis, wenn Zielordner im PATH" "! grep -q 'liegt nicht im PATH' $T/out"
 
+# --- Optionen: ueberall erlaubt, unbekannte = Fehler ---
+H6="$T/home6"; mkdir -p "$H6"; : > "$H6/.bashrc"
+( HOME="$H6" "$REPO/install.sh" "$H6/bin" --path ) >"$T/out" 2>&1; rc=$?
+ok "install: --path auch nach dem Zielordner erkannt" "[ $rc -eq 0 ] && grep -q '^export PATH' $H6/.bashrc"
+( HOME="$H6" "$REPO/install.sh" --foo ) >"$T/out" 2>&1; rc=$?
+ok "install: unbekannte Option -> Fehler, nichts angelegt" "[ $rc -ne 0 ] && grep -q 'Unbekannte Option' $T/out && [ ! -e ./--foo ] && [ ! -e $H6/--foo ]"
+( HOME="$H6" "$REPO/install.sh" a b ) >"$T/out" 2>&1; rc=$?
+ok "install: zwei Zielordner -> Fehler" "[ $rc -ne 0 ] && grep -q 'Unerwarteter Parameter' $T/out"
+
 # --- Aufruf ueber Symlink findet Lib und Config ---
 mkdir -p "$T/real"; cp -r "$REPO/sync" "$REPO/t3" "$T/real/"; mkdir -p "$T/real/conf"
 printf 'REMOTE_BASE_DIR="%s"\n' "$T" > "$T/real/conf/sync_x.conf"

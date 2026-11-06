@@ -10,11 +10,19 @@ LINE="[ -f \"$DIR/remote-aliases.sh\" ] && source \"$DIR/remote-aliases.sh\""
 BASHRC="$HOME/.bashrc"
 
 ADD_PATH=0
-if [ "$1" = "--path" ]; then
-    ADD_PATH=1
-    shift
+POS=()
+for arg in "$@"; do
+    case "$arg" in
+        --path) ADD_PATH=1 ;;
+        -*) echo "Fehler: Unbekannte Option '$arg'! Nutzung: ./install.sh [--path] [ziel-ordner]"; exit 1 ;;
+        *) POS+=("$arg") ;;
+    esac
+done
+if [ "${#POS[@]}" -gt 1 ]; then
+    echo "Fehler: Unerwarteter Parameter '${POS[1]}'! Nutzung: ./install.sh [--path] [ziel-ordner]"
+    exit 1
 fi
-TARGET=$(realpath -m -- "${1:-$HOME/bin}")
+TARGET=$(realpath -m -- "${POS[0]:-$HOME/bin}")
 
 declare -A LINKS=(
     [sync-send]="sync/sync-send.sh"
