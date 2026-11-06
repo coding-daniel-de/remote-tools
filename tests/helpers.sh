@@ -10,6 +10,7 @@ setup() {
     T=$(mktemp -d "${TMPDIR:-/tmp}/synctools-test.XXXXXX")
     mkdir -p "$T/tools/sync" "$T/tools/conf"
     cp "$REPO"/sync/*.sh "$T/tools/sync/"
+    mkdir -p "$T/tools/t3"; cp "$REPO"/t3/*.sh "$T/tools/t3/" 2>/dev/null
     cp -r "$TESTS_DIR/stubs" "$T/stubs"
     cp "$REPO/conf/sync_template.conf" "$T/tools/conf/"
     export HOME="$T"

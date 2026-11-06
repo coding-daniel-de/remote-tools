@@ -196,10 +196,10 @@ _sync_remote_join() {
 
 # sync_parse_transfer_args "$@": wertet die Argumente von sync-send/sync-fetch aus.
 # Setzt P_SERVER, P_PATH, P_TO, P_TO_SET, P_MODE (ask|run|dry), P_DELETE, P_RSYNC_OPTS,
-# P_RSYNC_OPTS_SET, P_CONFIGS. Fehler: Meldung auf stderr, Exit 1.
+# P_RSYNC_OPTS_SET, P_CONFIGS, P_ALL (nur mit SYNC_T3=1). Fehler: Meldung auf stderr, Exit 1.
 sync_parse_transfer_args() {
     P_SERVER=""; P_PATH=""; P_TO=""; P_TO_SET=0; P_MODE="ask"; P_DELETE=0
-    P_RSYNC_OPTS=""; P_RSYNC_OPTS_SET=0; P_CONFIGS=0
+    P_RSYNC_OPTS=""; P_RSYNC_OPTS_SET=0; P_CONFIGS=0; P_ALL=0
     local MODE_SET=0
     local -a POS=()
     while [ $# -gt 0 ]; do
@@ -217,6 +217,10 @@ sync_parse_transfer_args() {
                 shift ;;
             --delete)  P_DELETE=1; shift ;;
             --configs) P_CONFIGS=1; shift ;;
+            --all)
+                # nur t3-fs-*: schaltet die festen Standard-Excludes ab
+                if [ "${SYNC_T3:-0}" != 1 ]; then echo "Fehler: Unbekannte Option '--all'!" >&2; return 1; fi
+                P_ALL=1; shift ;;
             -*)
                 echo "Fehler: Unbekannte Option '$1'!" >&2
                 return 1 ;;
@@ -239,6 +243,7 @@ sync_parse_transfer_args() {
 # _sync_transfer_usage <send|fetch>: Hilfetext
 _sync_transfer_usage() {
     local D="$1" VERB WOHIN
+    if [ "${SYNC_T3:-0}" = 1 ]; then _sync_t3_usage "$D"; return; fi
     if [ "$D" = "send" ]; then VERB="schickt"; WOHIN="zur Gegenstelle"; else VERB="holt"; WOHIN="von der Gegenstelle"; fi
     cat <<USAGE
 sync-${D} <server> <pfad> [--to <ziel>] [--run | --dry-run] [--delete] [--rsync-opts "<opts>"] [--configs]
@@ -255,6 +260,28 @@ ${D^}: ${VERB} eine Datei oder einen Ordner per rsync ${WOHIN}. <server> ist der
   sync-${D} stage ordner --delete                   auch Dateien am Ziel löschen, die in der Quelle fehlen
   sync-${D} stage ordner --rsync-opts "-rltz"       rsync-Optionen ersetzen (Standard: ${SYNC_DEFAULT_RSYNC_OPTS})
   sync-${D} --configs                               Tabelle der Gegenstellen
+USAGE
+}
+
+# _sync_t3_usage <send|fetch>: Hilfetext von t3-fs-send / t3-fs-fetch
+_sync_t3_usage() {
+    local D="$1" VERB WOHIN
+    if [ "$D" = "send" ]; then VERB="schickt"; WOHIN="zur Gegenstelle"; else VERB="holt"; WOHIN="von der Gegenstelle"; fi
+    cat <<USAGE
+t3-fs-${D} <server> [unterpfad] [--to <ziel>] [--run | --dry-run] [--delete] [--all] [--rsync-opts "<opts>"] [--configs]
+
+${D^}: ${VERB} den TYPO3-fileadmin (oder einen Unterordner) per rsync ${WOHIN}. <server> ist der Name nach sync_ (siehe Tabelle).
+[unterpfad] ist relativ zum fileadmin-Root; ohne Angabe wird der komplette fileadmin synchronisiert.
+Ausgeschlossen sind _processed_/, _temp_/ und _recycler_/ (mit --all nicht) sowie EXTRA_EXCLUDES aus der Config.
+
+  t3-fs-${D} stage                                  ganzer fileadmin, Dry-Run und Rückfrage
+  t3-fs-${D} stage user_upload/bilder               nur dieser Unterordner
+  t3-fs-${D} stage user_upload/bilder --to test/bilder   Probelauf in einen Testordner (nur mit Unterpfad)
+  t3-fs-${D} stage user_upload --dry-run            nur die Änderungsliste zeigen, nichts ändern
+  t3-fs-${D} stage user_upload --run                ohne Rückfrage ausführen
+  t3-fs-${D} stage user_upload --delete             auch Dateien am Ziel löschen, die in der Quelle fehlen
+  t3-fs-${D} stage --all                            auch _processed_/, _temp_/ und _recycler_/ übertragen
+  t3-fs-${D} --configs                              Tabelle der Gegenstellen (mit Spalte fileadmin)
 USAGE
 }
 
@@ -318,7 +345,8 @@ _sync_spec() {
 #              SSH_HOST) bzw. relativ zum Home der Gegenstelle (SSH, Basis ist schon enthalten).
 #              --dst ist der Pfad des Objekts selbst (Datei: exakter Name, Ordner: Spiegel der Quelle).
 # --kind       auto (Standard): Datei/Ordner auf der Quellseite testen.
-# --exclude    rsync-Exclude, mehrfach moeglich (hier leer; t3-fs-* setzt feste Excludes).
+# --exclude    rsync-Exclude, mehrfach moeglich (t3-fs-* setzt feste Excludes).
+# --need-dir   <seite> <pfad>: Ordner muss auf der Seite (local|remote) existieren, sonst Abbruch; mehrfach moeglich.
 # --rsync-opts Ebene "Aufruf"; leer -> RSYNC_OPTS der Config -> SYNC_DEFAULT_RSYNC_OPTS.
 # Rueckgabe: rsync-Exit-Code; 1 bei Fehlern/Abbruch; 0 bei --dry-run und wenn nichts zu tun ist.
 sync_run() {
@@ -346,7 +374,7 @@ sync_run() {
 
 _sync_run_inner() {
     local DIRECTION="" SRC="" DST="" KIND="auto" SERVER="${SSH_HOST:-Ordner}" MODE="ask" DELETE=0 OPTS_CALL=""
-    local -a EXCLUDES=()
+    local -a EXCLUDES=() NEED_DIRS=()
     while [ $# -gt 0 ]; do
         case "$1" in
             --direction) DIRECTION="$2"; shift 2 ;;
@@ -359,6 +387,7 @@ _sync_run_inner() {
             --delete) DELETE=1; shift ;;
             --rsync-opts) OPTS_CALL="$2"; shift 2 ;;
             --exclude) EXCLUDES+=("--exclude=$2"); shift 2 ;;
+            --need-dir) NEED_DIRS+=("$2|$3"); shift 3 ;;
             *) echo "Fehler (intern): sync_run kennt '$1' nicht!" >&2; return 1 ;;
         esac
     done
@@ -385,6 +414,16 @@ _sync_run_inner() {
         fi
     fi
     if _sync_ver_ge "$LOCAL_VER" 3.2.3 && _sync_ver_ge "$REMOTE_VER" 3.2.3; then MKPATH=1; fi
+
+    # --need-dir <seite> <pfad>: Ordner muss auf der Seite existieren (z. B. fileadmin-Root)
+    local ND ND_SIDE ND_PATH
+    for ND in "${NEED_DIRS[@]}"; do
+        ND_SIDE="${ND%%|*}"; ND_PATH="${ND#*|}"
+        if [ "$(_sync_probe "$ND_SIDE" "$ND_PATH")" != "dir" ]; then
+            echo "Fehler: Ordner '$(_sync_disp "$ND_SIDE" "$ND_PATH")' existiert nicht! Bitte LOCAL_FILEADMIN_DIR/REMOTE_FILEADMIN_DIR in der Config prüfen." >&2
+            return 1
+        fi
+    done
 
     local SRC_KIND DST_KIND
     SRC_KIND=$(_sync_probe "$SRC_SIDE" "$SRC") || { echo "Fehler: Quelle konnte nicht geprüft werden!" >&2; return 1; }
@@ -496,33 +535,50 @@ _sync_run_inner() {
     rsync "${BASE_ARGS[@]}" -- "$SPEC_SRC" "$SPEC_DST"
 }
 
-# sync_transfer_main <send|fetch> "$@": gemeinsamer Ablauf von sync-send.sh und sync-fetch.sh.
+# sync_transfer_main <send|fetch> "$@": gemeinsamer Ablauf von sync-send/-fetch und (mit SYNC_T3=1) t3-fs-send/-fetch.
+# Mit SYNC_T3=1 gilt der fileadmin als Wurzel (LOCAL_/REMOTE_FILEADMIN_DIR), der Pfad ist optional und die
+# festen TYPO3-Excludes kommen dazu. Die Wrapper in t3/ setzen nur SYNC_T3=1 und rufen diese Funktion.
 sync_transfer_main() {
     local D="$1"; shift
+    local T3="${SYNC_T3:-0}"
     if [ $# -eq 0 ]; then
-        sync_print_configs
+        sync_print_configs "$T3"
         echo
         _sync_transfer_usage "$D"
         return 0
     fi
     sync_parse_transfer_args "$@" || { echo >&2; _sync_transfer_usage "$D" >&2; return 1; }
     if [ "$P_CONFIGS" = 1 ]; then
-        sync_print_configs
+        sync_print_configs "$T3"
         return 0
     fi
     if [ -z "$P_SERVER" ]; then
         echo "Fehler: Gegenstelle fehlt!" >&2; echo >&2; _sync_transfer_usage "$D" >&2
         return 1
     fi
-    if [ -z "$P_PATH" ]; then
+    if [ "$T3" != 1 ] && [ -z "$P_PATH" ]; then
         echo "Fehler: Pfad fehlt (nie das ganze Home übertragen)!" >&2; echo >&2; _sync_transfer_usage "$D" >&2
         return 1
     fi
     sync_load_conf "$P_SERVER" || return 1
     [ -n "$SYNC_CONF_DUPLICATE" ] && echo "Hinweis: '${SYNC_CONF_DUPLICATE}' wird von conf/ verdeckt (doppelt/veraltet)." >&2
 
-    local REL TGT_REL BASENAME TO_REL
-    REL=$(_sync_norm_path "$P_PATH") || return 1
+    # Wurzeln: Home (sync-*) bzw. fileadmin (t3-fs-*); LROOT lokal relativ zu ~, RROOT relativ zur Basis der Gegenstelle
+    local LROOT="" RROOT="" REL TGT_REL BASENAME TO_REL
+    if [ "$T3" = 1 ]; then
+        if [ -z "$LOCAL_FILEADMIN_DIR" ] || [ -z "$REMOTE_FILEADMIN_DIR" ]; then
+            echo "Fehler: In '${SYNC_CONF_FILE}' müssen LOCAL_FILEADMIN_DIR und REMOTE_FILEADMIN_DIR gesetzt sein!" >&2
+            return 1
+        fi
+        LROOT=$(_sync_norm_path "$LOCAL_FILEADMIN_DIR") || return 1
+        RROOT=$(_sync_norm_path "$REMOTE_FILEADMIN_DIR") || return 1
+    fi
+
+    REL=$(_sync_norm_path "$P_PATH" "$T3") || return 1
+    if [ "$T3" = 1 ] && [ "$P_TO_SET" = 1 ] && [ -z "$REL" ]; then
+        echo "Fehler: --to geht nur zusammen mit einem Unterpfad (sonst würde der ganze fileadmin in einen Unterordner kopiert)!" >&2
+        return 1
+    fi
     BASENAME="${REL##*/}"
     TGT_REL="$REL"
     if [ "$P_TO_SET" = 1 ]; then
@@ -536,17 +592,28 @@ sync_transfer_main() {
 
     local SRC DST
     if [ "$D" = "send" ]; then
-        SRC="${HOME}/${REL}"
-        DST=$(_sync_remote_join "$TGT_REL")
+        SRC="${HOME}/${LROOT:+$LROOT/}${REL}"
+        DST=$(_sync_remote_join "${RROOT:+$RROOT/}${TGT_REL}")
     else
-        SRC=$(_sync_remote_join "$REL")
-        DST="${HOME}/${TGT_REL}"
+        SRC=$(_sync_remote_join "${RROOT:+$RROOT/}${REL}")
+        DST="${HOME}/${LROOT:+$LROOT/}${TGT_REL}"
     fi
+    SRC="${SRC%/}"; DST="${DST%/}"
 
     local -a ARGS=(--direction "$D" --src "$SRC" --dst "$DST" --server "$P_SERVER")
     [ "$P_MODE" = "run" ] && ARGS+=(--run)
     [ "$P_MODE" = "dry" ] && ARGS+=(--dry-run)
     [ "$P_DELETE" = 1 ] && ARGS+=(--delete)
     [ "$P_RSYNC_OPTS_SET" = 1 ] && ARGS+=(--rsync-opts "$P_RSYNC_OPTS")
+    if [ "$T3" = 1 ]; then
+        ARGS+=(--need-dir local "${HOME}/${LROOT}" --need-dir remote "$(_sync_remote_join "$RROOT")")
+        local EX
+        if [ "$P_ALL" != 1 ]; then
+            for EX in _processed_/ _temp_/ _recycler_/; do ARGS+=(--exclude "$EX"); done
+        fi
+        local -a EXTRA=()
+        read -ra EXTRA <<< "$EXTRA_EXCLUDES"
+        for EX in "${EXTRA[@]}"; do ARGS+=(--exclude "$EX"); done
+    fi
     sync_run "${ARGS[@]}"
 }
