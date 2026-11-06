@@ -25,5 +25,6 @@ Auf Webhosting-Servern sollen Dateien und Ordner (vor allem der TYPO3-fileadmin)
 ## Folgen
 
 - `--to` bei `t3-fs-*` ist nur mit Unterpfad erlaubt (sonst würde der ganze fileadmin in einen Unterordner kopiert).
+- `--mirror` bei `t3-fs-*` ist die Komplettübernahme (ganzer fileadmin wie die Quelle): `--delete` plus `_processed_/` mit, `_temp_/`, `_recycler_/` und `EXTRA_EXCLUDES` weiter aus. Nur ohne Unterpfad (Teilordner syncen mit den normalen Optionen), nicht mit `--all` oder `--to`. Grund: nach Übernahme einer Stage-DB sollen die Dateien zu `sys_file_processedfile` passen; `--delete` allein ließe verwaiste Processed-Dateien stehen.
 - Fehlende fileadmin-Ordner brechen vor jeder Änderung ab; eine falsche Config endet nicht in einem falschen Pfad.
 - Die Befehle ohne Endung sind Symlinks in `~/bin`, angelegt von `install.sh`; Cron und Hooks nutzen den absoluten Pfad auf die `.sh`.

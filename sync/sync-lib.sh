@@ -196,10 +196,10 @@ _sync_remote_join() {
 
 # sync_parse_transfer_args "$@": wertet die Argumente von sync-send/sync-fetch aus.
 # Setzt P_SERVER, P_PATH, P_TO, P_TO_SET, P_MODE (ask|run|dry), P_DELETE, P_RSYNC_OPTS,
-# P_RSYNC_OPTS_SET, P_CONFIGS, P_ALL (nur mit SYNC_T3=1). Fehler: Meldung auf stderr, Exit 1.
+# P_RSYNC_OPTS_SET, P_CONFIGS, P_ALL, P_MIRROR (beide nur mit SYNC_T3=1). Fehler: Meldung auf stderr, Exit 1.
 sync_parse_transfer_args() {
     P_SERVER=""; P_PATH=""; P_TO=""; P_TO_SET=0; P_MODE="ask"; P_DELETE=0
-    P_RSYNC_OPTS=""; P_RSYNC_OPTS_SET=0; P_CONFIGS=0; P_ALL=0
+    P_RSYNC_OPTS=""; P_RSYNC_OPTS_SET=0; P_CONFIGS=0; P_ALL=0; P_MIRROR=0
     local MODE_SET=0
     local -a POS=()
     while [ $# -gt 0 ]; do
@@ -221,6 +221,10 @@ sync_parse_transfer_args() {
                 # nur t3-fs-*: schaltet die festen Standard-Excludes ab
                 if [ "${SYNC_T3:-0}" != 1 ]; then echo "Fehler: Unbekannte Option '--all'!" >&2; return 1; fi
                 P_ALL=1; shift ;;
+            --mirror)
+                # nur t3-fs-*: Komplettuebernahme (ganzer fileadmin wie die Quelle)
+                if [ "${SYNC_T3:-0}" != 1 ]; then echo "Fehler: Unbekannte Option '--mirror'!" >&2; return 1; fi
+                P_MIRROR=1; shift ;;
             -*)
                 echo "Fehler: Unbekannte Option '$1'!" >&2
                 return 1 ;;
@@ -233,6 +237,18 @@ sync_parse_transfer_args() {
     fi
     P_SERVER="${POS[0]:-}"
     P_PATH="${POS[1]:-}"
+    if [ "$P_MIRROR" = 1 ] && [ "$P_ALL" = 1 ]; then
+        echo "Fehler: --mirror und --all schließen sich aus!" >&2
+        return 1
+    fi
+    if [ "$P_MIRROR" = 1 ] && [ -n "$P_PATH" ]; then
+        echo "Fehler: --mirror gilt nur für den ganzen fileadmin, ohne Unterpfad!" >&2
+        return 1
+    fi
+    if [ "$P_MIRROR" = 1 ] && [ "$P_TO_SET" = 1 ]; then
+        echo "Fehler: --mirror und --to schließen sich aus!" >&2
+        return 1
+    fi
     if [ "$P_TO_SET" = 1 ] && [ -z "$P_TO" ]; then
         echo "Fehler: --to braucht einen Wert!" >&2
         return 1
@@ -268,11 +284,16 @@ _sync_t3_usage() {
     local D="$1" VERB WOHIN
     if [ "$D" = "send" ]; then VERB="schickt"; WOHIN="zur Gegenstelle"; else VERB="holt"; WOHIN="von der Gegenstelle"; fi
     cat <<USAGE
-t3-fs-${D} <server> [unterpfad] [--to <ziel>] [--run | --dry-run] [--delete] [--all] [--rsync-opts "<opts>"] [--configs]
+t3-fs-${D} <server> [unterpfad] [--to <ziel>] [--run | --dry-run] [--delete] [--all | --mirror] [--rsync-opts "<opts>"] [--configs]
 
 ${D^}: ${VERB} den TYPO3-fileadmin (oder einen Unterordner) per rsync ${WOHIN}. <server> ist der Name nach sync_ (siehe Tabelle).
 [unterpfad] ist relativ zum fileadmin-Root; ohne Angabe wird der komplette fileadmin synchronisiert.
 Ausgeschlossen sind _processed_/, _temp_/ und _recycler_/ (mit --all nicht) sowie EXTRA_EXCLUDES aus der Config.
+
+--mirror ist die sinnvolle Option, wenn das komplette System übernommen werden soll (z. B. Stage-DB und
+fileadmin 1:1 auf Live, oder umgekehrt): ganzer fileadmin wie die Quelle (--delete), inklusive _processed_/,
+damit die Dateien zu sys_file_processedfile in der übernommenen DB passen. _temp_/, _recycler_/ und
+EXTRA_EXCLUDES bleiben ausgeschlossen. Nur ohne Unterpfad, nicht mit --all oder --to. Dry-Run und Rückfrage bleiben.
 
   t3-fs-${D} stage                                  ganzer fileadmin, Dry-Run und Rückfrage
   t3-fs-${D} stage user_upload/bilder               nur dieser Unterordner
@@ -281,6 +302,7 @@ Ausgeschlossen sind _processed_/, _temp_/ und _recycler_/ (mit --all nicht) sowi
   t3-fs-${D} stage user_upload --run                ohne Rückfrage ausführen
   t3-fs-${D} stage user_upload --delete             auch Dateien am Ziel löschen, die in der Quelle fehlen
   t3-fs-${D} stage --all                            auch _processed_/, _temp_/ und _recycler_/ übertragen
+  t3-fs-${D} stage --mirror                         Komplettübernahme: ganzer fileadmin 1:1 inkl. _processed_/, mit Löschen
   t3-fs-${D} --configs                              Tabelle der Gegenstellen (mit Spalte fileadmin)
 USAGE
 }
@@ -603,12 +625,14 @@ sync_transfer_main() {
     local -a ARGS=(--direction "$D" --src "$SRC" --dst "$DST" --server "$P_SERVER")
     [ "$P_MODE" = "run" ] && ARGS+=(--run)
     [ "$P_MODE" = "dry" ] && ARGS+=(--dry-run)
-    [ "$P_DELETE" = 1 ] && ARGS+=(--delete)
+    { [ "$P_DELETE" = 1 ] || [ "$P_MIRROR" = 1 ]; } && ARGS+=(--delete)
     [ "$P_RSYNC_OPTS_SET" = 1 ] && ARGS+=(--rsync-opts "$P_RSYNC_OPTS")
     if [ "$T3" = 1 ]; then
         ARGS+=(--need-dir local "${HOME}/${LROOT}" --need-dir remote "$(_sync_remote_join "$RROOT")")
         local EX
-        if [ "$P_ALL" != 1 ]; then
+        if [ "$P_MIRROR" = 1 ]; then
+            for EX in _temp_/ _recycler_/; do ARGS+=(--exclude "$EX"); done
+        elif [ "$P_ALL" != 1 ]; then
             for EX in _processed_/ _temp_/ _recycler_/; do ARGS+=(--exclude "$EX"); done
         fi
         local -a EXTRA=()

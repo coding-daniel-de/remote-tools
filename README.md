@@ -83,8 +83,8 @@ Regeln:
 ### t3-fs-send und t3-fs-fetch
 
 ```
-t3-fs-send  <server> [unterpfad] [--to <ziel>] [--run | --dry-run] [--delete] [--all] [--rsync-opts "<opts>"] [--configs]
-t3-fs-fetch <server> [unterpfad] [--to <ziel>] [--run | --dry-run] [--delete] [--all] [--rsync-opts "<opts>"] [--configs]
+t3-fs-send  <server> [unterpfad] [--to <ziel>] [--run | --dry-run] [--delete] [--all | --mirror] [--rsync-opts "<opts>"] [--configs]
+t3-fs-fetch <server> [unterpfad] [--to <ziel>] [--run | --dry-run] [--delete] [--all | --mirror] [--rsync-opts "<opts>"] [--configs]
 ```
 
 Der Unterpfad ist relativ zum fileadmin-Root und optional. Lokal gilt `~/<LOCAL_FILEADMIN_DIR>/<unterpfad>`, entfernt `<Basis>/<REMOTE_FILEADMIN_DIR>/<unterpfad>`. Beide fileadmin-Ordner müssen existieren, sonst Abbruch. Ablauf (Dry-Run, Rückfrage, `--run`, `--delete` usw.) wie oben.
@@ -96,7 +96,7 @@ Der Unterpfad ist relativ zum fileadmin-Root und optional. Lokal gilt `~/<LOCAL_
 | `t3-fs-send stage user_upload/bilder --to test/bilder` | Probelauf in einen Testordner auf Stage |
 | `t3-fs-fetch live user_upload` | holt diesen Unterordner von Live |
 
-Fest ausgeschlossen sind `_processed_/`, `_temp_/` und `_recycler_/`, dazu `EXTRA_EXCLUDES` aus der Config. `--all` schaltet nur die drei festen Standards ab. Ausgeschlossene Pfade fasst rsync am Ziel auch bei `--delete` nicht an.
+Fest ausgeschlossen sind `_processed_/`, `_temp_/` und `_recycler_/`, dazu `EXTRA_EXCLUDES` aus der Config. `--all` schaltet nur die drei festen Standards ab. **`--mirror`** ist die sinnvolle Option, wenn das komplette System übernommen werden soll (z. B. Stage-DB samt fileadmin 1:1 auf Live oder umgekehrt): ganzer fileadmin wie die Quelle (`--delete`), inklusive `_processed_/`, damit die Dateien zur übernommenen `sys_file_processedfile` passen. `_temp_/`, `_recycler_/` und `EXTRA_EXCLUDES` bleiben ausgeschlossen. Nur ohne Unterpfad, nicht zusammen mit `--all` oder `--to`; Dry-Run und Rückfrage bleiben. Ausgeschlossene Pfade fasst rsync am Ziel auch bei `--delete` nicht an.
 
 `--to` gibt es nur zusammen mit einem Unterpfad (sonst würde der ganze fileadmin in einen Unterordner kopiert). Weicht das Ziel vom Quellpfad ab, kennt TYPO3 die Dateien erst nach dem Indexieren (Ordner im Backend öffnen oder Storage-Index aktualisieren). Soll der Ordner an die echte Stelle, danach ohne `--to` erneut syncen.
 

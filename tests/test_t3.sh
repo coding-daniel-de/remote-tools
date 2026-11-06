@@ -93,6 +93,19 @@ ok "unbekannte Gegenstelle: Fehler" '! "$SEND" gibtsnicht --run >/dev/null 2>&1'
 OUT=$("$SEND" dir --foo 2>&1); RC=$?
 ok "unbekannte Option: Fehler" '[ $RC -ne 0 ] && echo "$OUT" | grep -q "Unbekannte Option"'
 
+# --- --mirror: Komplettuebernahme ---
+reset
+mkdir -p "$RFA/_processed_" "$RFA/_temp_" "$RFA/user_upload"; echo alt > "$RFA/_processed_/alt.jpg"; echo keep > "$RFA/_temp_/k.txt"; echo weg > "$RFA/user_upload/alt.txt"
+"$SEND" extra --mirror --run >/dev/null 2>&1; RC=$?
+ok "--mirror: processed uebertragen, Ueberzaehliges (auch in _processed_) geloescht" '[ $RC -eq 0 ] && [ -f "$RFA/_processed_/p.jpg" ] && [ ! -e "$RFA/_processed_/alt.jpg" ] && [ ! -e "$RFA/user_upload/alt.txt" ] && [ -f "$RFA/root.txt" ]'
+ok "--mirror: _temp_/_recycler_ und EXTRA_EXCLUDES bleiben aus" '[ -f "$RFA/_temp_/k.txt" ] && [ ! -e "$RFA/_temp_/t.txt" ] && [ ! -e "$RFA/_recycler_" ] && [ ! -e "$RFA/geheim" ]'
+OUT=$("$SEND" dir user_upload --mirror --run 2>&1); RC=$?
+ok "--mirror mit Unterpfad: Fehler" '[ $RC -ne 0 ] && echo "$OUT" | grep -q "ohne Unterpfad"'
+ok "--mirror mit --all: Fehler" '! "$SEND" dir --mirror --all --run >/dev/null 2>&1'
+ok "--mirror mit --to: Fehler" '! "$SEND" dir --mirror --to x --run >/dev/null 2>&1'
+ok "sync-send kennt --mirror nicht" '! "$TOOLS/sync/sync-send.sh" dir x --mirror >/dev/null 2>&1'
+ok "Hilfe nennt --mirror als Option fuer Komplettuebernahme" '"$SEND" 2>&1 | grep -q "sinnvolle Option, wenn das komplette System"'
+
 # --- --all gibt es nur bei t3 ---
 ok "sync-send kennt --all nicht" '! "$TOOLS/sync/sync-send.sh" dir x --all >/dev/null 2>&1'
 
