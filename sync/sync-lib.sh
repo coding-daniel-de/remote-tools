@@ -335,6 +335,28 @@ _sync_exec() {
     fi
 }
 
+# Absoluter, bereinigter Pfad ohne realpath (fehlt auf aelteren Servern): der tiefste vorhandene Ordner wird
+# physisch aufgeloest (Symlinks), der Rest lexikalisch angehaengt ("." und ".." entfernt). Ziel muss nicht existieren.
+_sync_abs() {
+    local p="$1" rest="" base head out part
+    case "$p" in /*) ;; *) p="$PWD/$p" ;; esac
+    while [ ! -d "$p" ] && [ "$p" != "/" ]; do
+        base="${p##*/}"; p="${p%/*}"; [ -n "$p" ] || p="/"
+        rest="$base${rest:+/$rest}"
+    done
+    head="$(cd -P -- "$p" 2>/dev/null && pwd -P)" || head="$p"
+    out="$head"
+    local IFS=/
+    for part in $rest; do
+        case "$part" in
+            ""|.) ;;
+            ..) out="${out%/*}"; [ -n "$out" ] || out="/" ;;
+            *)  [ "$out" = "/" ] && out="/$part" || out="$out/$part" ;;
+        esac
+    done
+    printf '%s\n' "$out"
+}
+
 # _sync_probe <seite> <pfad>: gibt dir|file|other|none aus. Exit 1 bei SSH-Fehler.
 _sync_probe() {
     local CMD
@@ -472,7 +494,7 @@ _sync_run_inner() {
     # Ordner-Modus (kein SSH): Quelle und Ziel duerfen weder gleich noch ineinander verschachtelt sein
     if [ -z "$SSH_HOST" ]; then
         local RS RD
-        RS=$(realpath -m -- "$SRC"); RD=$(realpath -m -- "$DST")
+        RS=$(_sync_abs "$SRC"); RD=$(_sync_abs "$DST")
         if [ "$RS" = "$RD" ]; then
             echo "Fehler: Quelle und Ziel sind derselbe Pfad (${RS})!" >&2
             return 1

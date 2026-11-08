@@ -31,7 +31,7 @@ git -C ~/remote-tools pull
 tilde-path datei
 ```
 
-Gibt den absoluten Pfad mit `~` statt `$HOME` aus, z. B. `~/mein-folder/datei`. Hilfreich für `scp`, wenn das Hosting per chroot arbeitet und der echte `realpath` im SFTP-Jail nicht existiert.
+Gibt den absoluten Pfad mit `~` statt `$HOME` aus, z. B. `~/mein-folder/datei`. Hilfreich für `scp`, wenn das Hosting per chroot arbeitet und der echte absolute Pfad im SFTP-Jail nicht existiert. Reine bash, ohne `realpath`.
 
 ### Tab-Vervollständigung
 

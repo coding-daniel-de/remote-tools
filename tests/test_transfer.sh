@@ -128,7 +128,7 @@ OUT=$("$SEND" dir data --foo 2>&1); RC=$?
 ok "unbekannte Option: Fehler" '[ $RC -ne 0 ] && echo "$OUT" | grep -q "Unbekannte Option"'
 ok "--to ohne Wert: Fehler" '! "$SEND" dir data --to >/dev/null 2>&1'
 ok "unbekannte Gegenstelle: Fehler" '! "$SEND" gibtsnicht data --run >/dev/null 2>&1'
-mkdir -p "$T/nobin"; for c in dirname readlink mktemp sed sort head awk realpath cat basename grep; do ln -sf "$(command -v $c)" "$T/nobin/$c"; done
+mkdir -p "$T/nobin"; for c in dirname readlink mktemp sed sort head awk cat basename grep; do ln -sf "$(command -v $c)" "$T/nobin/$c"; done
 OUT=$(PATH="$T/nobin" "$BASH" "$SEND" dir data --run 2>&1)
 ok "fehlendes rsync lokal: Fehler" 'echo "$OUT" | grep -q "rsync ist lokal nicht installiert"'
 

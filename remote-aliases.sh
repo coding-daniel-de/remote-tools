@@ -2,12 +2,21 @@
 
 # Gibt den Pfad einer Datei/eines Ordners mit ~ statt $HOME am Anfang aus.
 # Nuetzlich fuer scp/sftp bei gechrooteten Hostings, wo der echte absolute
-# Pfad (realpath) im SFTP-Jail nicht existiert, ~/... aber funktioniert.
+# Pfad im SFTP-Jail nicht existiert, ~/... aber funktioniert.
+# Reine bash, ohne realpath (fehlt in Jails und auf aelteren Servern). Symlinks im Ordnerteil werden aufgeloest.
 tilde-path() {
-    local f p home real_home
-    real_home="$(realpath "$HOME")"
+    local f p home real_home d b
+    real_home="$(cd -P -- "$HOME" 2>/dev/null && pwd -P)" || real_home="$HOME"
     for f in "${@:-.}"; do
-        p="$(realpath "$f")" || continue
+        if [ -d "$f" ]; then
+            p="$(cd -P -- "$f" && pwd -P)" || continue
+        elif [ -e "$f" ] || [ -L "$f" ]; then
+            d="$(dirname -- "$f")"; b="$(basename -- "$f")"
+            p="$(cd -P -- "$d" && pwd -P)" || continue
+            [ "$p" = "/" ] && p="/$b" || p="$p/$b"
+        else
+            echo "tilde-path: '$f': Datei oder Ordner nicht gefunden" >&2; continue
+        fi
         # $HOME kann ein Symlink sein (z. B. IONOS), daher gegen beide Varianten pruefen
         for home in "$real_home" "$HOME"; do
             case "$p" in
