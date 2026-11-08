@@ -9,7 +9,11 @@ git clone https://github.com/coding-daniel-de/remote-tools.git ~/remote-tools
 ~/remote-tools/install.sh
 ```
 
-`install.sh` trägt eine einzelne `source`-Zeile in die `~/.bashrc` ein (nur, wenn sie noch fehlt) und legt Symlinks ohne Endung in `~/bin` an (`sync-send`, `sync-fetch`, `sync-configs`, `t3-fs-send`, `t3-fs-fetch`; Ordner wird bei Bedarf angelegt). Existiert am Ziel schon etwas anderes, bricht der Installer ab und ändert nichts; ein erneuter Aufruf ist gefahrlos. Anderer Zielordner: `./install.sh [--path] <ziel-ordner>`. Zusätzlich sorgt es dafür, dass der Zielordner (`~/bin`) im `PATH` liegt: im Terminal mit Rückfrage (y/N), mit `./install.sh --path` ohne Rückfrage. Der Block steht mit Marker `# bin-path` in der `~/.bashrc` (derselbe wie bei db-tools, kommt nie doppelt). Die restliche `.bashrc` bleibt unangetastet.
+`install.sh` bindet `remote-aliases.sh` per `source`-Zeile in die `~/.bashrc` ein (nur, wenn sie noch fehlt) und legt Symlinks ohne Endung in `~/bin` an (`sync-send`, `sync-fetch`, `sync-configs`, `t3-fs-send`, `t3-fs-fetch`; Ordner wird bei Bedarf angelegt). Existiert am Ziel schon etwas anderes, bricht der Installer ab und ändert nichts; ein erneuter Aufruf ist gefahrlos. Anderer Zielordner: `./install.sh [--path] <ziel-ordner>`. Zusätzlich sorgt es dafür, dass der Zielordner (`~/bin`) im `PATH` liegt (Block mit Marker `# bin-path` in der `~/.bashrc`, kommt nie doppelt). Die restliche `.bashrc` bleibt unangetastet, es wird nur ergänzt. Es wird kein `realpath` benötigt, der Installer läuft auch auf älteren Servern (z. B. Debian 7).
+
+Alle Eintragungen (Aliase, `PATH`, Login-Zeile) erfolgen im Terminal mit Rückfrage (y/N), mit `./install.sh --path` ohne Rückfrage. Ohne Terminal und ohne `--path` legt der Installer nur die Symlinks an und gibt die Zeilen als Hinweis aus.
+
+**Login-Kette:** Bei einem Login (z. B. per SSH) liest bash nur die erste vorhandene Datei von `~/.bash_profile`, `~/.bash_login` und `~/.profile`. Bindet diese Datei die `~/.bashrc` nicht ein, fehlen dort `PATH`-Eintrag und Aliase. Deshalb prüft `install.sh` diese Datei und schlägt, falls nötig, die Zeile `[ -f ~/.bashrc ] && . ~/.bashrc` vor (bestehender Inhalt bleibt unverändert).
 
 Der Zielordner ist frei wählbar, z. B. `~/scripts/remote-tools`. Der Installer ermittelt seinen eigenen Ort und trägt dessen absoluten Pfad ein, die Aliasdatei bleibt im Repo. Wird der Ordner später verschoben, `install.sh` am neuen Ort erneut ausführen und die alte Zeile in der `~/.bashrc` von Hand entfernen.
 
