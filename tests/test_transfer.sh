@@ -132,6 +132,15 @@ mkdir -p "$T/nobin"; for c in dirname readlink mktemp sed sort head awk cat base
 OUT=$(PATH="$T/nobin" "$BASH" "$SEND" dir data --run 2>&1)
 ok "fehlendes rsync lokal: Fehler" 'echo "$OUT" | grep -q "rsync ist lokal nicht installiert"'
 
+# --- _sync_abs (Pfad ohne realpath normalisieren) ---
+( source "$TOOLS/sync/sync-lib.sh"
+  mkdir -p "$T/abs/real"; ln -s "$T/abs/real" "$T/abs/lnk"
+  cd "$T/abs" || exit 1
+  [ "$(_sync_abs lnk/neu/../x//y)" = "$T/abs/real/x/y" ] || exit 1
+  [ "$(_sync_abs ./real/)" = "$T/abs/real" ] || exit 1
+  [ "$(_sync_abs /)" = "/" ] ) 2>/dev/null
+ok "_sync_abs: Symlink aufgeloest, .. und // bereinigt, Ziel muss nicht existieren, Wurzel" "[ $? -eq 0 ]"
+
 # --- Tabelle und Hilfe ---
 OUT=$("$SEND" 2>&1); RC=$?
 ok "ohne Argumente: Tabelle plus Hilfe, Exit 0" '[ $RC -eq 0 ] && echo "$OUT" | grep -qE "^Name +Ziel +Datei" && echo "$OUT" | grep -q "sync-send <server>"'
